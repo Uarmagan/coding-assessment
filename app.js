@@ -2,6 +2,7 @@ const express = require('express');
 const swaggerUI = require('swagger-ui-express');
 const swaggerConfig = require('./swagger.js');
 const fetch = require('node-fetch');
+const { sorting } = require('./utils/sorting');
 const app = express();
 
 let transactionsData;
@@ -10,29 +11,18 @@ app
   .use(express.json())
   .use(express.urlencoded({ extended: true }))
   .use('/docs', swaggerUI.serve, swaggerUI.setup(swaggerConfig));
-app.get('/transactions', async (req, res) => {
+app.get('/transactions', (req, res) => {
   // Filtering
   if (req.query) {
     let filteredData = transactionsData;
-    if (req.query.isCredit !== undefined) {
+    if (req.query.isCredit) {
       filteredData = transactionsData.filter((trx) => {
         return trx.isCredit === (req.query.isCredit == 'true');
       });
     }
 
     if (req.query.sortBy && req.query.orderBy) {
-      filteredData = await filteredData.sort((a, b) => {
-        const { sortBy, orderBy } = req.query;
-        if (sortBy === 'date') {
-          return orderBy == 'DESC'
-            ? new Date(b[sortBy]) - new Date(a[sortBy])
-            : new Date(a[sortBy]) - new Date(b[sortBy]);
-        } else {
-          return orderBy == 'DESC'
-            ? b[sortBy] - a[sortBy]
-            : a[sortBy] - b[sortBy];
-        }
-      });
+      filteredData = sorting(filteredData, req.query.sortBy, req.query.orderBy);
     }
     return res.send(filteredData);
   }
@@ -55,10 +45,10 @@ app.patch('/transactions/:id/notes', (req, res) => {
   res.send(transactionsData);
 });
 
-app.listen(3000, () => {
+app.listen(3000, async () => {
   console.info('App listening...');
   console.info('Initializing Data...');
-  fetch(
+  await fetch(
     'https://m1-production-client-assets.s3.amazonaws.com/project-data/transactions-v1.json'
   )
     .then((response) => response.json())
